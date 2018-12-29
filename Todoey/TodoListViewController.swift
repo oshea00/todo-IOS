@@ -14,13 +14,27 @@ class TodoListViewController: UITableViewController {
         ToDo(text: "Read Book", done: false),
         ToDo(text: "Destroy Monster", done: false),
     ]
+
+    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+
     var defaults = UserDefaults.standard
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        print(dataFilePath)
         // Do any additional setup after loading the view, typically from a nib.
-        if let items = defaults.array(forKey: "items") as? [ToDo] {
-            itemArray = items
+        loadItems()
+        
+    }
+    
+    func loadItems() {
+        if let data = try? Data(contentsOf: dataFilePath!) {
+            let decoder = PropertyListDecoder()
+            do {
+                itemArray = try decoder.decode([ToDo].self, from: data)
+            } catch {
+                
+            }
         }
     }
 
@@ -45,8 +59,21 @@ class TodoListViewController: UITableViewController {
         tableView.cellForRow(at: indexPath)?.accessoryType = item.done == true ? .checkmark : .none
         tableView.reloadData()
         tableView.deselectRow(at: indexPath, animated: true)
+        saveItems()
     }
     
+    
+    func saveItems() {
+        let encoder = PropertyListEncoder()
+        do {
+            let data = try encoder.encode(self.itemArray)
+            try data.write(to: self.dataFilePath!)
+        } catch {
+            print("Error encoding: \(error)")
+        }
+        self.tableView.reloadData()
+
+    }
     //MARK: - Add New Items
     
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
@@ -59,8 +86,7 @@ class TodoListViewController: UITableViewController {
             if (textField.text! != "") {
                 let item = ToDo(text: textField.text!, done: false)
                 self.itemArray.append(item)
-                self.defaults.set(self.itemArray,forKey: "items")
-                self.tableView.reloadData()
+                self.saveItems()
             }
         }
         alert.addTextField { (alertTextField) in
