@@ -7,37 +7,50 @@
 //
 
 import UIKit
+import CoreData
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: UITableViewController, UISearchBarDelegate {
 
-    var itemArray = [
-        ToDo(text: "Read Book", done: false),
-        ToDo(text: "Destroy Monster", done: false),
-    ]
-
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    @IBOutlet weak var searchBar: UISearchBar!
+    var itemArray = [ToDo]()
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 
     var defaults = UserDefaults.standard
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        print(dataFilePath)
         // Do any additional setup after loading the view, typically from a nib.
-        loadItems()
-        
+        let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        print(dataFilePath)
+        loadItems(query: ToDo.fetchRequest())
+        searchBar.delegate = self
     }
     
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
-            do {
-                itemArray = try decoder.decode([ToDo].self, from: data)
-            } catch {
-                
-            }
+    func loadItems(query: NSFetchRequest<ToDo>) {
+        do {
+            itemArray = try context.fetch(query)
+            tableView.reloadData()
+        } catch {
+            print("Error fetching data from context: \(error)")
         }
     }
 
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<ToDo> = ToDo.fetchRequest()
+        request.predicate = NSPredicate(format: "text CONTAINS[cd] %@", searchBar.text!)
+        request.sortDescriptors = [NSSortDescriptor(key: "text", ascending: true)]
+        loadItems(query: request)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems(query: ToDo.fetchRequest())
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+        }
+    }
+    
     //MARK - Tableview Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int
     {
@@ -53,10 +66,11 @@ class TodoListViewController: UITableViewController {
 
     //MARK: - Tableview touch
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        //print(indexPath.row, itemArray[indexPath.row])
         let item = itemArray[indexPath.row]
         item.done = !item.done
         tableView.cellForRow(at: indexPath)?.accessoryType = item.done == true ? .checkmark : .none
+        //context.delete(itemArray[indexPath.row])
+        //itemArray.remove(at: indexPath.row)
         tableView.reloadData()
         tableView.deselectRow(at: indexPath, animated: true)
         saveItems()
@@ -64,12 +78,10 @@ class TodoListViewController: UITableViewController {
     
     
     func saveItems() {
-        let encoder = PropertyListEncoder()
         do {
-            let data = try encoder.encode(self.itemArray)
-            try data.write(to: self.dataFilePath!)
+            try context.save()
         } catch {
-            print("Error encoding: \(error)")
+            print("Error saving \(error)")
         }
         self.tableView.reloadData()
 
@@ -84,7 +96,9 @@ class TodoListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             // What will happen once user clicks the add item button
             if (textField.text! != "") {
-                let item = ToDo(text: textField.text!, done: false)
+                let item = ToDo(context: self.context)
+                item.text = textField.text!
+                item.done = false
                 self.itemArray.append(item)
                 self.saveItems()
             }
