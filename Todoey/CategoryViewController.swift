@@ -7,36 +7,33 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class CategoryViewController: UITableViewController {
     
-    var categories = [Category]()
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    let realm = try! Realm()
+    
+    var categories : Results<Category>?
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        loadItems(query: Category.fetchRequest())
+        loadCategories()
     }
 
-    func loadItems(query: NSFetchRequest<Category>) {
-        do {
-            categories = try context.fetch(query)
-            tableView.reloadData()
-        } catch {
-            print("Error fetching data from context: \(error)")
-        }
+    func loadCategories() {
+        categories = realm.objects(Category.self)
+        tableView.reloadData()
     }
     
     // MARK: - Table view data source
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         // #warning Incomplete implementation, return the number of rows
-        return categories.count
+        return categories?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = self.tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        cell.textLabel?.text = categories[indexPath.row].name
+        cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories Added"
         return cell
     }
 
@@ -48,10 +45,9 @@ class CategoryViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Category", style: .default) { (action) in
             // What will happen once user clicks the add item button
             if (textField.text! != "") {
-                let category = Category(context: self.context)
+                let category = Category()
                 category.name = textField.text!
-                self.categories.append(category)
-                self.saveItems()
+                self.save(category: category)
             }
         }
         alert.addTextField { (alertTextField) in
@@ -73,16 +69,18 @@ class CategoryViewController: UITableViewController {
         if segue.identifier == "goToItems" {
             let vc = segue.destination as! TodoListViewController
             if let indexPath = tableView.indexPathForSelectedRow {
-                vc.category = categories[indexPath.row]
+                vc.category = categories?[indexPath.row]
             }
             
         }
     }
 
     //MARK: Data Manipulation
-    func saveItems() {
+    func save(category: Category) {
         do {
-            try context.save()
+            try realm.write {
+                realm.add(category)
+            }
         } catch {
             print("Error saving \(error)")
         }
