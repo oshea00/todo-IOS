@@ -8,8 +8,9 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class CategoryViewController: UITableViewController {
+class CategoryViewController: SwipeTableViewController {
     
     let realm = try! Realm()
     
@@ -18,6 +19,7 @@ class CategoryViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         loadCategories()
+        tableView.separatorStyle = .none
     }
 
     func loadCategories() {
@@ -32,8 +34,27 @@ class CategoryViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = self.tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories Added"
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        if let category = categories?[indexPath.row] {
+            cell.textLabel?.text = category.name
+            if category.backGroundColor == "#FFFFFF" {
+                let backgroundColor = UIColor.randomFlat()!
+                cell.backgroundColor = backgroundColor
+                do {
+                    try realm.write {
+                        category.backGroundColor = backgroundColor.hexValue()
+                    }
+                } catch {
+                    print("Error updating background color on category")
+                }
+            } else {
+                cell.backgroundColor = UIColor(hexString: category.backGroundColor)
+            }
+            cell.textLabel?.textColor = UIColor.init(contrastingBlackOrWhiteColorOn: cell.backgroundColor, isFlat: true)
+        } else {
+            cell.textLabel?.text = "No Category Added"
+        }
+        
         return cell
     }
 
@@ -87,5 +108,18 @@ class CategoryViewController: UITableViewController {
         tableView.reloadData()
     }
     
-
+    func deleteCategory(category: Category) {
+        do {
+            try realm.write {
+                realm.delete(category)
+            }
+        } catch {
+            print("Error deleting \(error)")
+        }
+    }
+    
+    override func deleteRow(row: Int) {
+        deleteCategory(category: (categories?[row])!)
+    }
 }
+
